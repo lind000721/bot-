@@ -1,0 +1,49 @@
+name: Build optional sticker resources
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/build-sticker-packs.py
+      - .github/workflows/sticker-resources.yml
+permissions:
+  contents: write
+concurrency:
+  group: sticker-resources-v1
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download original public distribution without executing installer
+        shell: pwsh
+        run: |
+          curl.exe --fail --location --retry 3 --output original.exe https://github.com/Unclecheng-li/starlit.com/releases/download/v1.0.0-rc.17/Starlit-Setup-1.0.0-rc.17-personal-x64.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Download failed' }
+          & 'C:/Program Files/7-Zip/7z.exe' x original.exe -oouter -y
+          if ($LASTEXITCODE -ne 0) { throw 'Outer extraction failed' }
+          $payload = Get-ChildItem outer -Recurse -Filter app-64.7z | Select-Object -First 1
+          if (-not $payload) { throw 'Payload not found' }
+          & 'C:/Program Files/7-Zip/7z.exe' x $payload.FullName -oapp -y
+          if ($LASTEXITCODE -ne 0) { throw 'Payload extraction failed' }
+      - name: Build deterministic optional packs
+        shell: pwsh
+        run: |
+          $index = Get-ChildItem app -Recurse -Filter index.json | Where-Object { $_.Directory.Name -eq 'stickers' } | Select-Object -First 1
+          if (-not $index) { throw 'Sticker index not found' }
+          python tools/build-sticker-packs.py $index.Directory.FullName dist
+          if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
+      - name: Publish resource release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release view sticker-assets-v1 --repo "$env:GITHUB_REPOSITORY"
+          if ($LASTEXITCODE -ne 0) { gh release create sticker-assets-v1 --repo "$env:GITHUB_REPOSITORY" --title "心链可选表情资源 v1" --notes "按需下载的独立资源包。原始表情与角色权利归各自权利人。无需在应用安装包中捆绑。" }
+          if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          gh release upload sticker-assets-v1 dist/*.xlp dist/catalog.json --repo "$env:GITHUB_REPOSITORY" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed' }

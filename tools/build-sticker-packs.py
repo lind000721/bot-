@@ -1,4 +1,5 @@
 import pathlib,json,hashlib,zipfile,mimetypes,re,sys,shutil
+sys.stdout.reconfigure(encoding='utf8')
 root=pathlib.Path(sys.argv[1] if len(sys.argv)>1 else '.independent-review/windows/resources/template/data/stickers');out=pathlib.Path(sys.argv[2] if len(sys.argv)>2 else 'xinlian/dist/sticker-packs');out.mkdir(parents=True,exist_ok=True)
 source=json.loads((root/'index.json').read_text(encoding='utf8'));groups={};names={'blue archive':('starlit-blue-archive','蔚蓝档案'),'mygo':('starlit-mygo','MyGO'),'超时空辉夜姬表情包':('starlit-kaguya','超时空辉夜姬'),'stolen':('starlit-reactions','通用反应')}
 for row in source:
